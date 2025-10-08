@@ -7,6 +7,8 @@ use std::error::Error;
 use tokio::join;
 use tower_http::services::ServeDir;
 
+pub mod routes;
+
 pub struct Application {
     server: Serve<Router, Router>,
     pub address: String,
