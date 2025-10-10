@@ -1,5 +1,8 @@
+use std::fmt::format;
+
 use auth_service::Application;
 use reqwest::Client;
+use uuid::Uuid;
 
 pub struct TestApp {
     pub address: String,
@@ -34,9 +37,13 @@ impl TestApp {
     }
 
     // TODO: Implement helper functions for all other routes (signup, login, logout, verify-2fa, and verify-token)
-    pub async fn signup(&self) -> reqwest::Response {
+    pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
         self.http_client
             .post(&format!("{}/signup", &self.address))
+            .json(body)
             .send()
             .await
             .expect("could not get http client")
@@ -73,4 +80,8 @@ impl TestApp {
             .await
             .expect("could not get verify token route")
     }
+}
+
+pub fn get_random_email() -> String {
+    format!("{}@exanple.com", Uuid::new_v4())
 }

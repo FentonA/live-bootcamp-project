@@ -8,6 +8,7 @@ use tokio::join;
 use tower_http::services::ServeDir;
 
 pub mod routes;
+use routes::signup::signup;
 
 pub struct Application {
     server: Serve<Router, Router>,
@@ -35,10 +36,6 @@ impl Application {
         println!("Listening on {}", &self.address);
         self.server.await
     }
-}
-
-async fn signup() -> impl IntoResponse {
-    StatusCode::OK.into_response()
 }
 
 async fn login() -> impl IntoResponse {
