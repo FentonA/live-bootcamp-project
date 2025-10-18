@@ -1,15 +1,16 @@
-use super::user::User;
+// domain/data_store.rs
+use super::{Email, Password};
+use crate::domain::user::User;
 
 #[async_trait::async_trait]
 pub trait UserStore {
-    // TODO: Add the `add_user`, `get_user`, and `validate_user` methods.
-    // Make sure all methods are async so we can use async user stores in the future
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
-    async fn get_user<'a>(&'a self, email: &str) -> Result<&'a User, UserStoreError>;
-    async fn validate_user(&self, email: &str, password: &str) -> Result<(), UserStoreError>;
+    async fn get_user<'a>(&'a self, email: &Email) -> Result<&'a User, UserStoreError>;
+    async fn validate_user(&self, email: &Email, password: &Password)
+        -> Result<(), UserStoreError>;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum UserStoreError {
     UserAlreadyExists,
     UserNotFound,
