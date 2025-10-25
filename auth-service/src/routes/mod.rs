@@ -1,5 +1,5 @@
 pub mod login;
-mod logout;
+pub mod logout;
 pub mod signup;
 mod verify_2fa;
 mod verify_token;

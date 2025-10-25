@@ -1,21 +1,23 @@
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use axum::Router;
 use std::error::Error;
-use tower_http::services::ServeDir;
 
 pub mod routes;
 pub mod utils;
-use routes::{login::login, signup::signup};
+use routes::{login::login, logout::logout, signup::signup};
 pub mod app_state;
 pub mod domain;
 pub mod services;
 use crate::domain::error::AuthAPIError;
+use crate::utils::*;
 pub use app_state::app_state::AppState;
 use serde::{Deserialize, Serialize};
 pub use services::*;
+
+use tower_http::{cors::CorsLayer, services::ServeDir};
 
 #[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -33,6 +35,8 @@ impl IntoResponse for AuthAPIError {
             AuthAPIError::UnexpectedError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }
+            AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
+            AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing token"),
         };
         let body = Json(ErrorResponse {
             error: error_message.to_string(),
@@ -48,6 +52,18 @@ pub struct Application {
 
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
+        let allowed_origins = [
+            "http://localhost:8000".parse()?,
+            // TODO: Replace [YOUR_DROPLET_IP] with your Droplet IP address
+            "http://[YOUR_DROPLET_IP]:8000".parse()?,
+        ];
+        let cors = CorsLayer::new()
+            // Allow GET and POST requests
+            .allow_methods([Method::GET, Method::POST])
+            // Allow cookies to be included in requests
+            .allow_credentials(true)
+            .allow_origin(allowed_origins);
+
         let router = Router::new()
             .nest_service("/", ServeDir::new("assets"))
             .route("/signup", post(signup))
@@ -55,7 +71,8 @@ impl Application {
             .route("/logout", post(logout))
             .route("/verify-token", get(verify_token))
             .route("/verify-2fa", get(verify_2fa))
-            .with_state(app_state);
+            .with_state(app_state)
+            .layer(cors);
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
@@ -68,10 +85,6 @@ impl Application {
         println!("Listening on {}", &self.address);
         self.server.await
     }
-}
-
-async fn logout() -> impl IntoResponse {
-    StatusCode::OK.into_response()
 }
 
 async fn verify_token() -> impl IntoResponse {
