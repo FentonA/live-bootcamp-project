@@ -7,6 +7,7 @@ use std::error::Error;
 use tower_http::services::ServeDir;
 
 pub mod routes;
+pub mod utils;
 use routes::{login::login, signup::signup};
 pub mod app_state;
 pub mod domain;
