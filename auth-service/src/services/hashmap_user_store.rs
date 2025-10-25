@@ -35,10 +35,11 @@ impl UserStore for HashmapUserStore {
         email: &Email,
         password: &Password,
     ) -> Result<(), UserStoreError> {
+        println!("this is the user from the store {:?}", self.users);
         match self.users.get(email) {
             Some(user) if &user.password == password => Ok(()),
             Some(_) => Err(UserStoreError::InvalidCredentials),
-            None => Err(UserStoreError::UserNotFound),
+            None => Err(UserStoreError::InvalidCredentials),
         }
     }
 }
@@ -105,6 +106,6 @@ mod tests {
         let result_not_found = user_store
             .validate_user(&nonexistent_email, &password)
             .await;
-        assert_eq!(result_not_found, Err(UserStoreError::UserNotFound));
+        assert_eq!(result_not_found, Err(UserStoreError::InvalidCredentials));
     }
 }

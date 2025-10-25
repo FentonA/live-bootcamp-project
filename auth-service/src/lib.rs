@@ -7,7 +7,7 @@ use std::error::Error;
 use tower_http::services::ServeDir;
 
 pub mod routes;
-use routes::signup::signup;
+use routes::{login::login, signup::signup};
 pub mod app_state;
 pub mod domain;
 pub mod services;
@@ -26,6 +26,9 @@ impl IntoResponse for AuthAPIError {
         let (status, error_message) = match self {
             AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             AuthAPIError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
+            AuthAPIError::IncorrectCredentials => {
+                (StatusCode::UNAUTHORIZED, "Incorrect Credentials")
+            }
             AuthAPIError::UnexpectedError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }
@@ -64,10 +67,6 @@ impl Application {
         println!("Listening on {}", &self.address);
         self.server.await
     }
-}
-
-async fn login() -> impl IntoResponse {
-    StatusCode::OK.into_response()
 }
 
 async fn logout() -> impl IntoResponse {
