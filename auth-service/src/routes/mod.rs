@@ -2,7 +2,7 @@ pub mod login;
 pub mod logout;
 pub mod signup;
 mod verify_2fa;
-mod verify_token;
+pub mod verify_token;
 
 pub use login::*;
 pub use logout::*;

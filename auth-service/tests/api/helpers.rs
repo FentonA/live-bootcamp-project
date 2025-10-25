@@ -88,9 +88,13 @@ impl TestApp {
             .expect("could not get verify 2fa route")
     }
 
-    pub async fn verify_token(&self) -> reqwest::Response {
+    pub async fn post_verify_token<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
         self.http_client
-            .get(&format!("{}/verify-token", &self.address))
+            .post(&format!("{}/verify-token", &self.address))
+            .json(body)
             .send()
             .await
             .expect("could not get verify token route")
