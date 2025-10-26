@@ -11,18 +11,20 @@ use serde::{Deserialize, Serialize};
 use crate::utils::auth::generate_auth_cookie;
 
 pub async fn verify_token(
+    State(state): State<AppState>,
     Json(request): Json<TokenRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    println!("this ist he request {:?}", request);
     if request.token.is_empty() {
         return Err(AuthAPIError::InvalidToken);
     }
-    if let Err(_) = auth::validate_token(&request.token).await {
+
+    if let Err(_) = auth::validate_token(&request.token, state.tokenstore).await {
         return Err(AuthAPIError::InvalidToken);
     }
 
     Ok(StatusCode::OK.into_response())
 }
+
 #[derive(Deserialize, Debug)]
 pub struct TokenRequest {
     pub token: String,

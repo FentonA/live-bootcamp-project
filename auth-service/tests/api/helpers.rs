@@ -1,6 +1,6 @@
 use auth_service::{
-    app_state::app_state::AppState, hashmap_user_store::HashmapUserStore, utils::constants::test,
-    Application,
+    app_state::app_state::AppState, hashmap_user_store::HashmapUserStore,
+    hashset_banned_token_store::HashsetBannedTokenStore, utils::constants::test, Application,
 };
 use reqwest::{cookie::Jar, Client};
 use std::sync::Arc;
@@ -11,12 +11,14 @@ pub struct TestApp {
     pub address: String,
     pub cookie_jar: Arc<Jar>,
     pub http_client: Client,
+    pub banned_token_store: Arc<RwLock<HashsetBannedTokenStore>>,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
         let user_store = HashmapUserStore::new();
-        let app_state = AppState::new(Arc::new(RwLock::new(user_store)));
+        let token_store = Arc::new(RwLock::new(HashsetBannedTokenStore::new())); // Store Arc
+        let app_state = AppState::new(Arc::new(RwLock::new(user_store)), token_store.clone());
         let app = Application::build(app_state, test::APP_ADDRESS)
             .await
             .expect("Could not build application");
@@ -36,6 +38,7 @@ impl TestApp {
             address,
             cookie_jar,
             http_client,
+            banned_token_store: token_store,
         }
     }
 

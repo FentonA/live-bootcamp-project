@@ -17,3 +17,15 @@ pub enum UserStoreError {
     InvalidCredentials,
     UnexpectedError,
 }
+
+#[async_trait::async_trait]
+pub trait BannedTokenStore {
+    async fn store_token(&mut self, token: String) -> Result<(), BannedTokenStoreError>;
+    async fn check_token<'a>(&'a self, token: String) -> Result<(), BannedTokenStoreError>;
+}
+
+#[derive(Debug)]
+pub enum BannedTokenStoreError {
+    TokenNotPresent,
+    TokenAlreadyBanned,
+}
