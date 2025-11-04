@@ -7,7 +7,10 @@ use std::error::Error;
 
 pub mod routes;
 pub mod utils;
-use routes::{login::login, logout::logout, signup::signup, verify_token::verify_token};
+use routes::{
+    login::login, logout::logout, signup::signup, verify_2fa::verify_2fa,
+    verify_token::verify_token,
+};
 pub mod app_state;
 pub mod domain;
 pub mod services;
@@ -70,7 +73,7 @@ impl Application {
             .route("/login", post(login))
             .route("/logout", post(logout))
             .route("/verify-token", post(verify_token))
-            .route("/verify-2fa", get(verify_2fa))
+            .route("/verify-2fa", post(verify_2fa))
             .with_state(app_state)
             .layer(cors);
 
@@ -85,8 +88,4 @@ impl Application {
         println!("Listening on {}", &self.address);
         self.server.await
     }
-}
-
-async fn verify_2fa() -> impl IntoResponse {
-    StatusCode::OK.into_response()
 }

@@ -1,6 +1,12 @@
 use auth_service::{
-    app_state::app_state::AppState, hashmap_user_store::HashmapUserStore,
-    hashset_banned_token_store::HashsetBannedTokenStore, utils::constants::test, Application,
+    app_state::app_state::{AppState, CodeStore},
+    domain::data_store::TwoFaCodeStoreError,
+    hashmap_two_fa_code_store::HashMapTwoFACodeStore,
+    hashmap_user_store::HashmapUserStore,
+    hashset_banned_token_store::HashsetBannedTokenStore,
+    mock_email_client::MockEmailClient,
+    utils::constants::test,
+    Application,
 };
 use reqwest::{cookie::Jar, Client};
 use std::sync::Arc;
@@ -12,13 +18,21 @@ pub struct TestApp {
     pub cookie_jar: Arc<Jar>,
     pub http_client: Client,
     pub banned_token_store: Arc<RwLock<HashsetBannedTokenStore>>,
+    pub two_fa_code_store: CodeStore,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
-        let user_store = HashmapUserStore::new();
+        let user_store = Arc::new(RwLock::new(HashmapUserStore::new()));
         let token_store = Arc::new(RwLock::new(HashsetBannedTokenStore::new())); // Store Arc
-        let app_state = AppState::new(Arc::new(RwLock::new(user_store)), token_store.clone());
+        let two_fa_code_store = Arc::new(RwLock::new(HashMapTwoFACodeStore::default()));
+        let email_client = Arc::new(MockEmailClient);
+        let app_state = AppState::new(
+            user_store,
+            token_store.clone(),
+            two_fa_code_store.clone(),
+            email_client.clone(),
+        );
         let app = Application::build(app_state, test::APP_ADDRESS)
             .await
             .expect("Could not build application");
@@ -39,6 +53,7 @@ impl TestApp {
             cookie_jar,
             http_client,
             banned_token_store: token_store,
+            two_fa_code_store,
         }
     }
 
@@ -83,12 +98,16 @@ impl TestApp {
             .expect("could not get logout route")
     }
 
-    pub async fn verify_2fa(&self) -> reqwest::Response {
+    pub async fn post_verify_2fa<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
         self.http_client
-            .get(&format!("{}/verify-2fa", &self.address))
+            .post(format!("{}/verify-2fa", &self.address))
+            .json(body)
             .send()
             .await
-            .expect("could not get verify 2fa route")
+            .expect("Failed to execute request.")
     }
 
     pub async fn post_verify_token<Body>(&self, body: &Body) -> reqwest::Response
