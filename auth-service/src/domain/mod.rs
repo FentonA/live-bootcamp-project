@@ -33,3 +33,9 @@ impl Password {
         Ok(Password(password))
     }
 }
+
+impl AsRef<str> for Password {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}

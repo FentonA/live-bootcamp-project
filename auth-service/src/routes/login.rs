@@ -63,7 +63,7 @@ async fn handle_2fa(
 
     let mut code_store = state.two_fa_code_store.write().await;
     if let Err(_) = code_store.add_code(email, login_attempt, two_fa_code).await {
-        state.email_client.send_email(
+        let _ = state.email_client.send_email(
             &email,
             "Could not create 2FA code",
             "There was an error creating the 2fa code for your account",

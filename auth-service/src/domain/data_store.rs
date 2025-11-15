@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[async_trait::async_trait]
 pub trait UserStore {
     async fn add_user(&mut self, user: User) -> Result<(), UserStoreError>;
-    async fn get_user<'a>(&'a self, email: &Email) -> Result<&'a User, UserStoreError>;
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError>;
     async fn validate_user(&self, email: &Email, password: &Password)
         -> Result<(), UserStoreError>;
 }
@@ -32,6 +32,7 @@ pub trait BannedTokenStore {
 pub enum BannedTokenStoreError {
     TokenNotPresent,
     TokenAlreadyBanned,
+    UnexpectedError,
 }
 
 #[async_trait::async_trait]
@@ -42,7 +43,7 @@ pub trait TwoFaCodeStore {
         login_attempt_id: LoginAttemptId,
         code: TwoFACode,
     ) -> Result<(), TwoFaCodeStoreError>;
-
+    async fn remove_code(&mut self, email: &Email) -> Result<(), TwoFaCodeStoreError>;
     async fn get_code(
         &self,
         email: &Email,
@@ -108,7 +109,9 @@ impl TwoFACode {
 impl Default for TwoFACode {
     fn default() -> Self {
         let mut rng = rand::rng();
-        let code: String = (0..6).map(|_| rng.gen_range(b'A'..=b'Z') as char).collect();
+        let code: String = (0..6)
+            .map(|_| rng.random_range(b'A'..=b'Z') as char)
+            .collect();
         Self(code)
     }
 }

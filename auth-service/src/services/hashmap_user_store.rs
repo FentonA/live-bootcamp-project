@@ -26,8 +26,11 @@ impl UserStore for HashmapUserStore {
         Ok(())
     }
 
-    async fn get_user<'a>(&'a self, email: &Email) -> Result<&'a User, UserStoreError> {
-        self.users.get(email).ok_or(UserStoreError::UserNotFound)
+    async fn get_user(&self, email: &Email) -> Result<User, UserStoreError> {
+        self.users
+            .get(email)
+            .cloned()
+            .ok_or(UserStoreError::UserNotFound)
     }
 
     async fn validate_user(
@@ -76,7 +79,7 @@ mod tests {
         user_store.add_user(test_user.clone()).await.unwrap();
 
         let result = user_store.get_user(&email).await;
-        assert_eq!(result.expect("User should exist"), &test_user);
+        assert_eq!(result.expect("User should exist"), test_user);
 
         let email_two = Email::parse("test2@mail.com".to_string()).expect("Valid email");
         let result_not_found = user_store.get_user(&email_two).await;

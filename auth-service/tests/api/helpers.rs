@@ -1,14 +1,23 @@
 use auth_service::{
     app_state::app_state::{AppState, CodeStore},
+    data_stores::{
+        postgres_user_store::PostgresUserStore, redis_two_fa_code_store::RedisTwoFACodeStore,
+    },
     domain::data_store::TwoFaCodeStoreError,
+    get_postgres_pool, get_redis_client,
     hashmap_two_fa_code_store::HashMapTwoFACodeStore,
     hashmap_user_store::HashmapUserStore,
     hashset_banned_token_store::HashsetBannedTokenStore,
     mock_email_client::MockEmailClient,
-    utils::constants::test,
+    utils::constants::{test, DATABASE_URL, DEFAULT_REDIS_HOSTNAME},
     Application,
 };
 use reqwest::{cookie::Jar, Client};
+use sqlx::{
+    postgres::{PgConnectOptions, PgConnection, PgPoolOptions},
+    Connection, Executor, PgPool,
+};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -19,13 +28,17 @@ pub struct TestApp {
     pub http_client: Client,
     pub banned_token_store: Arc<RwLock<HashsetBannedTokenStore>>,
     pub two_fa_code_store: CodeStore,
+    pub db_name: String,
+    pub clean_up_called: bool,
 }
 
 impl TestApp {
     pub async fn new() -> Self {
-        let user_store = Arc::new(RwLock::new(HashmapUserStore::new()));
-        let token_store = Arc::new(RwLock::new(HashsetBannedTokenStore::new())); // Store Arc
-        let two_fa_code_store = Arc::new(RwLock::new(HashMapTwoFACodeStore::default()));
+        let (pg_pool, db_name) = configure_postgresql().await;
+        let redis_conn = configure_redis();
+        let user_store = Arc::new(RwLock::new(PostgresUserStore::new(pg_pool)));
+        let token_store = Arc::new(RwLock::new(HashsetBannedTokenStore::new()));
+        let two_fa_code_store = Arc::new(RwLock::new(RedisTwoFACodeStore::new(redis_conn)));
         let email_client = Arc::new(MockEmailClient);
         let app_state = AppState::new(
             user_store,
@@ -54,6 +67,8 @@ impl TestApp {
             http_client,
             banned_token_store: token_store,
             two_fa_code_store,
+            db_name,
+            clean_up_called: false,
         }
     }
 
@@ -121,8 +136,110 @@ impl TestApp {
             .await
             .expect("could not get verify token route")
     }
+
+    pub async fn clean_up(&mut self) {
+        delete_database(&self.db_name).await;
+        self.clean_up_called = true
+    }
+}
+
+impl Drop for TestApp {
+    fn drop(&mut self) {
+        if !self.clean_up_called {
+            eprintln!(
+                "TestApp was dropped without called clean_up! Database '{}' was not cleaned up",
+                self.db_name
+            )
+        }
+    }
 }
 
 pub fn get_random_email() -> String {
     format!("{}@exanple.com", Uuid::new_v4())
+}
+
+async fn configure_postgresql() -> (PgPool, String) {
+    let postgresql_conn_url = DATABASE_URL.to_owned();
+
+    let db_name = Uuid::new_v4().to_string();
+
+    configure_database(&postgresql_conn_url, &db_name).await;
+
+    let postgresql_conn_url_with_db = format!("{}/{}", postgresql_conn_url, db_name);
+
+    let pool = get_postgres_pool(&postgresql_conn_url_with_db)
+        .await
+        .expect("Failed to create Postgres connection pool!");
+
+    (pool, db_name)
+}
+
+async fn configure_database(db_conn_string: &str, db_name: &str) {
+    // Create database connection
+    let connection = PgPoolOptions::new()
+        .connect(db_conn_string)
+        .await
+        .expect("Failed to create Postgres connection pool.");
+
+    // Create a new database
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, db_name).as_str())
+        .await
+        .expect("Failed to create database.");
+
+    // Connect to new database
+    let db_conn_string = format!("{}/{}", db_conn_string, db_name);
+
+    let connection = PgPoolOptions::new()
+        .connect(&db_conn_string)
+        .await
+        .expect("Failed to create Postgres connection pool.");
+
+    // Run migrations against new database
+    sqlx::migrate!()
+        .run(&connection)
+        .await
+        .expect("Failed to migrate the database");
+}
+
+fn configure_redis() -> Arc<RwLock<redis::Connection>> {
+    let conn = get_redis_client(DEFAULT_REDIS_HOSTNAME.to_owned())
+        .expect("Failed to get Redis client")
+        .get_connection()
+        .expect("Failed to get Redis connection");
+
+    Arc::new(RwLock::new(conn))
+}
+
+async fn delete_database(db_name: &str) {
+    let postgresql_conn_url: String = DATABASE_URL.to_owned();
+
+    let connection_options = PgConnectOptions::from_str(&postgresql_conn_url)
+        .expect("Failed to parse PostgreSQL connection string");
+
+    let mut connection = PgConnection::connect_with(&connection_options)
+        .await
+        .expect("Failed to connect to Postgres");
+
+    connection
+        .execute(
+            format!(
+                r#"
+                SELECT pg_terminate_backend(pg_stat_activity.pid)
+                FROM pg_stat_activity
+                WHERE pg_stat_activity.datname = '{}'
+                  AND pid <> pg_backend_pid();
+        "#,
+                db_name
+            )
+            .as_str(),
+        )
+        .await
+        .expect("Failed to drop the database.");
+
+    // Drop the database
+    connection
+        .execute(format!(r#"DROP DATABASE "{}";"#, db_name).as_str())
+        .await
+        .expect("Failed to drop the database.");
 }

@@ -3,8 +3,8 @@ use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use axum::Router;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::error::Error;
-
 pub mod routes;
 pub mod utils;
 use routes::{
@@ -15,11 +15,11 @@ pub mod app_state;
 pub mod domain;
 pub mod services;
 use crate::domain::error::AuthAPIError;
-use crate::utils::*;
 pub use app_state::app_state::AppState;
+use redis::Client;
+use redis::RedisResult;
 use serde::{Deserialize, Serialize};
 pub use services::*;
-
 use tower_http::{cors::CorsLayer, services::ServeDir};
 
 #[derive(Serialize, Deserialize)]
@@ -88,4 +88,13 @@ impl Application {
         println!("Listening on {}", &self.address);
         self.server.await
     }
+}
+
+pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new().max_connections(5).connect(url).await
+}
+
+pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
+    let redis_url = format!("redis://{}/", redis_hostname);
+    redis::Client::open(redis_url)
 }

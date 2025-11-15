@@ -1,4 +1,4 @@
-use crate::domain::data_store::{LoginAttemptId, TwoFACode};
+use crate::domain::data_store::{LoginAttemptId, TwoFACode, TwoFaCodeStore};
 use crate::domain::Email;
 use crate::routes::LoginResponse;
 use crate::utils::auth::generate_auth_cookie;
@@ -12,39 +12,32 @@ pub async fn verify_2fa(
     jar: CookieJar,
     Json(request): Json<Verify2FARequest>,
 ) -> (CookieJar, Result<impl IntoResponse, AuthAPIError>) {
-    println!("this is the request {:?}", request);
     let email = match Email::parse(request.email) {
         Ok(email) => email,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
-    println!("This is the email {:?}", email);
     let login_attempt_id = match LoginAttemptId::parse(request.login_attempt_id) {
         Ok(id) => id,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
-    println!("this is the login attempt id {:?}", login_attempt_id);
     let two_fa_code = match TwoFACode::parse(request.two_fa_code) {
         Ok(code) => code,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
-    print!("this is the two_fa_code {:?}", two_fa_code);
-
     let mut two_fa_code_store = state.two_fa_code_store.write().await;
 
-    let code_tuple = match two_fa_code_store.codes.get(&email) {
-        Some(tuple) => tuple.clone(),
-        None => return (jar, Err(AuthAPIError::IncorrectCredentials)),
+    let code_tuple = match two_fa_code_store.get_code(&email).await {
+        Ok(tuple) => tuple,
+        Err(_) => return (jar, Err(AuthAPIError::IncorrectCredentials)),
     };
-
-    println!("this is the code_typle {:?}", code_tuple);
 
     if code_tuple.0 != login_attempt_id || code_tuple.1 != two_fa_code {
         return (jar, Err(AuthAPIError::InvalidCredentials));
     }
 
-    two_fa_code_store.codes.remove(&email);
+    two_fa_code_store.remove_code(&email);
 
     let cookie = match generate_auth_cookie(&email) {
         Ok(cookie) => cookie,

@@ -33,6 +33,11 @@ impl TwoFaCodeStore for HashMapTwoFACodeStore {
         Ok(())
     }
 
+    async fn remove_code(&mut self, email: &Email) -> Result<(), TwoFaCodeStoreError> {
+        self.codes.remove(email);
+        Ok(())
+    }
+
     async fn get_code(
         &self,
         email: &Email,
