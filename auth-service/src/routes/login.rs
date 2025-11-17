@@ -9,6 +9,7 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 
+#[tracing::instrument(name = "Login", skip_all)]
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -32,12 +33,12 @@ pub async fn login(
 
     let user = match user_store.get_user(&email).await {
         Ok(user) => user,
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e.into()))),
     };
 
     let auth_cookie = match generate_auth_cookie(&email) {
         Ok(cookie) => cookie,
-        Err(_) => return (jar, Err(AuthAPIError::UnexpectedError)),
+        Err(e) => return (jar, Err(AuthAPIError::UnexpectedError(e.into()))),
     };
 
     let updated_jar = jar.add(auth_cookie);
@@ -48,31 +49,32 @@ pub async fn login(
     }
 }
 
+#[tracing::instrument(name = "Handle 2FA", skip_all)]
 async fn handle_2fa(
     state: &AppState,
     email: &Email,
     jar: CookieJar,
 ) -> (CookieJar, Result<Response, AuthAPIError>) {
-    let login_attempt = LoginAttemptId::default();
+    let login_attempt_id = LoginAttemptId::default();
     let two_fa_code = TwoFACode::default();
 
     let response = TwoFactorAuthResponse {
         message: "2FA required".to_string(),
-        login_attempt_id: login_attempt.clone(),
+        login_attempt_id: login_attempt_id.clone(),
     };
 
     let mut code_store = state.two_fa_code_store.write().await;
-    if let Err(_) = code_store.add_code(email, login_attempt, two_fa_code).await {
-        let _ = state.email_client.send_email(
-            &email,
-            "Could not create 2FA code",
-            "There was an error creating the 2fa code for your account",
-        );
-        return (jar, Err(AuthAPIError::UnexpectedError));
+    if let Err(e) = code_store
+        .add_code(email, login_attempt_id.clone(), two_fa_code)
+        .await
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError((e.into()))));
     }
+
     (jar, Ok((StatusCode::OK, Json(response)).into_response()))
 }
 
+#[tracing::instrument(name = "Handle No 2FA", skip_all)]
 async fn handle_no_2fa(
     email: &Email,
     jar: CookieJar,

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::auth::generate_auth_cookie;
 
+#[tracing::instrument(name = "Verify Token", skip_all)]
 pub async fn verify_token(
     State(state): State<AppState>,
     Json(request): Json<TokenRequest>,

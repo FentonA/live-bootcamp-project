@@ -1,9 +1,11 @@
 // domain/data_store.rs
 use super::{Email, Password};
 use crate::domain::user::User;
+use color_eyre::eyre::{eyre, Context, Report, Result};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
+use thiserror::Error;
 use uuid::Uuid;
 
 #[async_trait::async_trait]
@@ -14,12 +16,28 @@ pub trait UserStore {
         -> Result<(), UserStoreError>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Error)]
 pub enum UserStoreError {
+    #[error("User already exists")]
     UserAlreadyExists,
+    #[error("User not found")]
     UserNotFound,
+    #[error("Invalid user credentials")]
     InvalidCredentials,
-    UnexpectedError,
+    #[error("Unexpected error")]
+    UnexpectedError(#[source] Report),
+}
+
+impl PartialEq for UserStoreError {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::UserAlreadyExists, Self::UserAlreadyExists)
+                | (Self::UserNotFound, Self::UserNotFound)
+                | (Self::InvalidCredentials, Self::InvalidCredentials)
+                | (Self::UnexpectedError(_), Self::UnexpectedError(_))
+        )
+    }
 }
 
 #[async_trait::async_trait]
@@ -50,12 +68,26 @@ pub trait TwoFaCodeStore {
     ) -> Result<(LoginAttemptId, TwoFACode), TwoFaCodeStoreError>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TwoFaCodeStoreError {
+    #[error("Error: login attempt id not not found")]
     LoginAttempIdNotFound,
-    UnexpectedError,
+    #[error("Unexpectd Error")]
+    UnexpectedError(#[error] Report),
+    #[error("User Already had a code")]
     UserHasCode,
+    #[error("User code not found")]
     CodeNotFound,
+}
+
+impl PartialEq for TwoFACodeStoreError {
+    fn eq(&self, other: &Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::LoginAttemptIdNotFound, Self::LoginAttemptIdNotFound)
+                | (Self::UnexpectedError(_), Self::UnexpectedError(_))
+        )
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Deserialize, Serialize)]
@@ -68,17 +100,9 @@ impl AsRef<str> for LoginAttemptId {
 }
 
 impl LoginAttemptId {
-    pub fn parse(id: String) -> Result<Self, String> {
-        match Uuid::parse_str(&id) {
-            Ok(_) => Ok(Self(id)),
-            Err(e) => {
-                println!(
-                    "this is the error with the login attemp {:?}",
-                    e.to_string()
-                );
-                Err("Could not parse uudi".to_string())
-            }
-        }
+    pub fn parse(id: String) -> Result<Self> {
+        let parsed_id = uuid::Uuid::parse_str(&id).wrap_err("Invalid login attempt id")?;
+        Ok(Self(parsed_id.to_string()))
     }
 }
 
@@ -97,15 +121,18 @@ impl AsRef<str> for TwoFACode {
         &self.0
     }
 }
+
 impl TwoFACode {
-    pub fn parse(code: String) -> Result<Self, String> {
-        if code.len() < 6 {
-            return Err("Not a valid Two FA Code".to_string());
+    pub fn parse(code: String) -> Result<Self> {
+        let code_as_u32 = code.parse::<u32>().wrap_err("Invalid 2FA code")?;
+
+        if (100_000..=999_999).contains(&code_as_u32) {
+            Ok(Self(code))
+        } else {
+            Err(eyre!("Invalid 2FA code"))
         }
-        Ok(Self(code))
     }
 }
-
 impl Default for TwoFACode {
     fn default() -> Self {
         let mut rng = rand::rng();

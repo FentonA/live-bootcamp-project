@@ -20,7 +20,9 @@ use redis::Client;
 use redis::RedisResult;
 use serde::{Deserialize, Serialize};
 pub use services::*;
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
+use tracing::info;
+use utils::tracing::{make_span_with_request_id, on_request, on_response};
 
 #[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -29,13 +31,14 @@ pub struct ErrorResponse {
 
 impl IntoResponse for AuthAPIError {
     fn into_response(self) -> Response {
+        log_error_chain(&self);
         let (status, error_message) = match self {
             AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             AuthAPIError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
             AuthAPIError::IncorrectCredentials => {
                 (StatusCode::UNAUTHORIZED, "Incorrect Credentials")
             }
-            AuthAPIError::UnexpectedError => {
+            AuthAPIError::UnexpectedError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }
             AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
@@ -75,7 +78,17 @@ impl Application {
             .route("/verify-token", post(verify_token))
             .route("/verify-2fa", post(verify_2fa))
             .with_state(app_state)
-            .layer(cors);
+            .layer(cors)
+            .layer(
+                // New!
+                // Add a TraceLayer for HTTP requests to enable detailed tracing
+                // This layer will create spans for each request using the make_span_with_request_id function,
+                // and log events at the start and end of each request using on_request and on_response functions.
+                TraceLayer::new_for_http()
+                    .make_span_with(make_span_with_request_id)
+                    .on_request(on_request)
+                    .on_response(on_response),
+            );
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
@@ -85,7 +98,7 @@ impl Application {
     }
 
     pub async fn run(self) -> Result<(), std::io::Error> {
-        println!("Listening on {}", &self.address);
+        info!("Listening on {}", &self.address);
         self.server.await
     }
 }
@@ -97,4 +110,18 @@ pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
 pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
     let redis_url = format!("redis://{}/", redis_hostname);
     redis::Client::open(redis_url)
+}
+
+fn log_error_chain(e: &(dyn Error + 'static)) {
+    let separator =
+        "\n-----------------------------------------------------------------------------------\n";
+    let mut report = format!("{}{:?}\n", separator, e);
+    let mut current = e.source();
+    while let Some(cause) = current {
+        let str = format!("Caused by:\n\n{:?}", cause);
+        report = format!("{}\n{}", report, str);
+        current = cause.source();
+    }
+    report = format!("{}\n{}", report, separator);
+    tracing::error!("{}", report);
 }

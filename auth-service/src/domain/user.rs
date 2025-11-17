@@ -1,5 +1,9 @@
-use super::{Email, Password};
-#[derive(Debug, Default, Clone, PartialEq)]
+use crate::domain::{Email, Password};
+use color_eyre::eyre::Report;
+use rand::Rng;
+use thiserror::Error;
+
+#[derive(Debug, Error, Default, Clone, PartialEq)]
 pub struct User {
     pub email: Email,
     pub password: Password,

@@ -2,6 +2,7 @@ use auth_service::data_stores::postgres_user_store::PostgresUserStore;
 use auth_service::data_stores::redis_two_fa_code_store::RedisTwoFACodeStore;
 use auth_service::get_postgres_pool;
 use auth_service::utils::constants::{DATABASE_URL, DEFAULT_REDIS_HOSTNAME};
+use auth_service::utils::tracing::init_tracing;
 use auth_service::{
     app_state::app_state::AppState,
     domain::{email_client, EmailClient},
@@ -20,6 +21,8 @@ use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
+    color_eyre::install().expect("Failed to install color_eyre");
+    init_tracing().expect("Failed to install color_eyre");
     let pg_pool = configure_postgresql().await;
     let redis_conn = configure_redis();
     let userstore = PostgresUserStore::new(pg_pool);

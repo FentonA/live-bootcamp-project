@@ -7,12 +7,15 @@ use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 
+#[tracing::instrument(name = "Generate Auth Cookie", skip_all)]
 pub fn generate_auth_cookie(email: &Email) -> Result<Cookie<'static>, GenerateTokenError> {
     let token = generate_auth_token(email)?;
     Ok(create_auth_cookie(token))
 }
 
 // Create cookie and set the value to the passed-in token string
+
+#[tracing::instrument(name = "Create Auth Cookie", skip_all)]
 fn create_auth_cookie(token: String) -> Cookie<'static> {
     let cookie = Cookie::build((JWT_COOKIE_NAME, token))
         .path("/") // apply cookie to all URLs on the server
@@ -33,6 +36,8 @@ pub enum GenerateTokenError {
 pub const TOKEN_TTL_SECONDS: i64 = 600; // 10 minutes
 
 // Create JWT auth token
+
+#[tracing::instrument(name = "Generate Auth Token", skip_all)]
 fn generate_auth_token(email: &Email) -> Result<String, GenerateTokenError> {
     let delta = chrono::Duration::try_seconds(TOKEN_TTL_SECONDS)
         .ok_or(GenerateTokenError::UnexpectedError)?;
@@ -55,6 +60,7 @@ fn generate_auth_token(email: &Email) -> Result<String, GenerateTokenError> {
     create_token(&claims).map_err(GenerateTokenError::TokenError)
 }
 
+#[tracing::instrument(name = "Validate Token", skip_all)]
 pub async fn validate_token(
     token: &str,
     banned_token_store: TokenStore,
@@ -73,6 +79,7 @@ pub async fn validate_token(
     .map(|data| data.claims)
 }
 // Create JWT auth token by encoding claims using the JWT secret
+#[tracing::instrument(name = "Create Token", skip_all)]
 fn create_token(claims: &Claims) -> Result<String, jsonwebtoken::errors::Error> {
     encode(
         &jsonwebtoken::Header::default(),
