@@ -4,11 +4,11 @@ use crate::domain::error::AuthAPIError;
 use crate::domain::user::User;
 use crate::domain::{Email, Password};
 use crate::utils::auth;
+use crate::utils::auth::generate_auth_cookie;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
+use secrecy::Secret;
 use serde::{Deserialize, Serialize};
-
-use crate::utils::auth::generate_auth_cookie;
 
 #[tracing::instrument(name = "Verify Token", skip_all)]
 pub async fn verify_token(
@@ -18,8 +18,8 @@ pub async fn verify_token(
     if request.token.is_empty() {
         return Err(AuthAPIError::InvalidToken);
     }
-
-    if let Err(_) = auth::validate_token(&request.token, state.tokenstore).await {
+    let token = Secret::new(request.token);
+    if let Err(_) = auth::validate_token(token, state.tokenstore).await {
         return Err(AuthAPIError::InvalidToken);
     }
 

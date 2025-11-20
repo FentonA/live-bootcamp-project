@@ -1,5 +1,5 @@
 use super::Email;
-use color::eyre::Result;
+use color_eyre::eyre::Result;
 
 #[async_trait::async_trait]
 pub trait EmailClient {

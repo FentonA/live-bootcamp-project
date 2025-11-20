@@ -7,6 +7,7 @@ use crate::utils::auth::generate_auth_cookie;
 use axum::response::Response;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::CookieJar;
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 
 #[tracing::instrument(name = "Login", skip_all)]
@@ -15,12 +16,12 @@ pub async fn login(
     jar: CookieJar,
     Json(request): Json<LoginRequest>,
 ) -> (CookieJar, Result<impl IntoResponse, AuthAPIError>) {
-    let email = match Email::parse(request.email) {
+    let email = match Email::parse(Secret::new(request.email)) {
         Ok(email) => email,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
 
-    let password = match Password::parse(request.password) {
+    let password = match Password::parse(Secret::new(request.password)) {
         Ok(password) => password,
         Err(_) => return (jar, Err(AuthAPIError::InvalidCredentials)),
     };
@@ -60,7 +61,7 @@ async fn handle_2fa(
 
     let response = TwoFactorAuthResponse {
         message: "2FA required".to_string(),
-        login_attempt_id: login_attempt_id.clone(),
+        login_attempt_id: login_attempt_id.as_ref().expose_secret().to_owned(),
     };
 
     let mut code_store = state.two_fa_code_store.write().await;
@@ -85,7 +86,7 @@ async fn handle_no_2fa(
     (jar, Ok((StatusCode::OK, Json(response)).into_response()))
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
@@ -98,14 +99,14 @@ pub struct RegularAuth {
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TwoFactorAuthResponse {
     pub message: String,
     #[serde(rename = "loginAttemptId")]
-    pub login_attempt_id: LoginAttemptId,
+    pub login_attempt_id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
     RegularAuth,

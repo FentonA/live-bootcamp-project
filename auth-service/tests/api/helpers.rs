@@ -13,6 +13,7 @@ use auth_service::{
     Application,
 };
 use reqwest::{cookie::Jar, Client};
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{
     postgres::{PgConnectOptions, PgConnection, PgPoolOptions},
     Connection, Executor, PgPool,
@@ -147,9 +148,22 @@ impl Drop for TestApp {
     fn drop(&mut self) {
         if !self.clean_up_called {
             eprintln!(
-                "TestApp was dropped without called clean_up! Database '{}' was not cleaned up",
+                "⚠️  TestApp dropped without clean_up! Cleaning database '{}'...",
                 self.db_name
-            )
+            );
+
+            let db_name = self.db_name.clone();
+
+            // Spawn a thread to do async cleanup
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    delete_database(&db_name).await;
+                    eprintln!("✅ Successfully cleaned up database '{}'", db_name);
+                });
+            })
+            .join()
+            .ok();
         }
     }
 }
@@ -163,11 +177,12 @@ async fn configure_postgresql() -> (PgPool, String) {
 
     let db_name = Uuid::new_v4().to_string();
 
-    configure_database(&postgresql_conn_url, &db_name).await;
+    configure_database(&postgresql_conn_url.expose_secret(), &db_name).await;
 
-    let postgresql_conn_url_with_db = format!("{}/{}", postgresql_conn_url, db_name);
+    let postgresql_conn_url_with_db =
+        format!("{}/{}", postgresql_conn_url.expose_secret(), db_name);
 
-    let pool = get_postgres_pool(&postgresql_conn_url_with_db)
+    let pool = get_postgres_pool(&Secret::new(postgresql_conn_url_with_db))
         .await
         .expect("Failed to create Postgres connection pool!");
 
@@ -212,9 +227,9 @@ fn configure_redis() -> Arc<RwLock<redis::Connection>> {
 }
 
 async fn delete_database(db_name: &str) {
-    let postgresql_conn_url: String = DATABASE_URL.to_owned();
+    let postgresql_conn_url = &DATABASE_URL;
 
-    let connection_options = PgConnectOptions::from_str(&postgresql_conn_url)
+    let connection_options = PgConnectOptions::from_str(&postgresql_conn_url.expose_secret())
         .expect("Failed to parse PostgreSQL connection string");
 
     let mut connection = PgConnection::connect_with(&connection_options)

@@ -3,6 +3,7 @@ use crate::{
     utils::auth::TOKEN_TTL_SECONDS,
 };
 use redis::{Commands, Connection};
+use secrecy::{ExposeSecret, Secret};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -19,8 +20,8 @@ impl RedisBannedTokenStore {
 #[async_trait::async_trait]
 impl BannedTokenStore for RedisBannedTokenStore {
     #[tracing::instrument(name = "Store Token", skip_all)]
-    async fn store_token(&mut self, token: String) -> Result<(), BannedTokenStoreError> {
-        let key = get_key(&token);
+    async fn store_token(&mut self, token: Secret<String>) -> Result<(), BannedTokenStoreError> {
+        let key = get_key(&token.expose_secret());
 
         // Lock the connection to get mutable access
         let mut conn = self.conn.write().await;
@@ -33,8 +34,8 @@ impl BannedTokenStore for RedisBannedTokenStore {
     }
 
     #[tracing::instrument(name = "Check Token", skip_all)]
-    async fn check_token(&self, token: String) -> Result<(), BannedTokenStoreError> {
-        let key = get_key(&token);
+    async fn check_token(&self, token: &Secret<String>) -> Result<(), BannedTokenStoreError> {
+        let key = get_key(&token.expose_secret());
 
         // Lock the connection (read access is enough for checking)
         let mut conn = self.conn.write().await;

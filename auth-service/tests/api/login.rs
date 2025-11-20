@@ -1,6 +1,6 @@
 use crate::helpers::{get_random_email, TestApp};
 use auth_service::{
-    routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME, ErrorResponse,
+    routes::login::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME, ErrorResponse,
 };
 
 #[tokio::test]
@@ -30,6 +30,7 @@ async fn should_return_401_if_incorrect_credentials() {
     });
 
     let response = app.post_signup(&login).await;
+    println!("this is the response {:?}", response);
 
     assert_eq!(response.status().as_u16(), 201);
     let user = serde_json::json!({

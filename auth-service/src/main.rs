@@ -14,6 +14,7 @@ use auth_service::{
     utils::constants::prod,
     Application,
 };
+use secrecy::Secret;
 use sqlx::sqlx_macros;
 use sqlx::PgPool;
 use std::sync::Arc;

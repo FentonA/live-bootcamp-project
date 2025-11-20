@@ -1,5 +1,6 @@
 use color_eyre::eyre::Context;
 use redis::{Commands, Connection};
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -33,8 +34,8 @@ impl TwoFaCodeStore for RedisTwoFACodeStore {
         let new_key = get_key(&email);
         // 2. Create a TwoFATuple instance
         let tuple = TwoFATuple(
-            login_attempt_id.as_ref().to_string(),
-            code.as_ref().to_string(),
+            login_attempt_id.as_ref().expose_secret().to_owned(),
+            code.as_ref().expose_secret().to_owned(),
         );
         // 3. Use serde_json::to_string to serialize the TwoFATuple instance into a JSON string.
         let json_string = serde_json::to_string(&tuple)
@@ -81,11 +82,11 @@ impl TwoFaCodeStore for RedisTwoFACodeStore {
                     .wrap_err("failed to deserialize 2FA tuple") // New!
                     .map_err(TwoFaCodeStoreError::UnexpectedError)?; // Updated!
 
-                let login_attempt_id =
-                    LoginAttemptId::parse(data.0).map_err(TwoFaCodeStoreError::UnexpectedError)?; // Updated!
+                let login_attempt_id = LoginAttemptId::parse(data.0.into())
+                    .map_err(TwoFaCodeStoreError::UnexpectedError)?; // Updated!
 
-                let email_code =
-                    TwoFACode::parse(data.1).map_err(TwoFaCodeStoreError::UnexpectedError)?; // Updated!
+                let email_code = TwoFACode::parse(data.1.into())
+                    .map_err(TwoFaCodeStoreError::UnexpectedError)?; // Updated!
 
                 Ok((login_attempt_id, email_code))
             }
@@ -94,7 +95,7 @@ impl TwoFaCodeStore for RedisTwoFACodeStore {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct TwoFATuple(pub String, pub String);
 
 const TEN_MINUTES_IN_SECONDS: u64 = 600;
@@ -102,5 +103,9 @@ const TWO_FA_CODE_PREFIX: &str = "two_fa_code:";
 
 #[tracing::instrument(name = "get key redis", skip_all)]
 fn get_key(email: &Email) -> String {
-    format!("{}{}", TWO_FA_CODE_PREFIX, email.as_ref())
+    format!(
+        "{}{}",
+        TWO_FA_CODE_PREFIX,
+        email.as_ref().expose_secret().to_owned()
+    )
 }

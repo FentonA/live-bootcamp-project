@@ -3,7 +3,7 @@ use color_eyre::eyre::Report;
 use rand::Rng;
 use thiserror::Error;
 
-#[derive(Debug, Error, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct User {
     pub email: Email,
     pub password: Password,

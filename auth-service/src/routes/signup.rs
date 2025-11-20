@@ -4,6 +4,7 @@ use crate::domain::error::AuthAPIError;
 use crate::domain::user::User;
 use crate::domain::{Email, Password};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use secrecy::Secret;
 use serde::{Deserialize, Serialize};
 
 #[tracing::instrument(name = "Signup", skip_all)]
@@ -11,10 +12,11 @@ pub async fn signup(
     State(state): State<AppState>,
     Json(request): Json<SignupRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
-    let email = Email::parse(request.email).map_err(|_| AuthAPIError::InvalidCredentials)?;
+    let email =
+        Email::parse(Secret::new(request.email)).map_err(|_| AuthAPIError::InvalidCredentials)?;
 
-    let password =
-        Password::parse(request.password).map_err(|_| AuthAPIError::InvalidCredentials)?;
+    let password = Password::parse(Secret::new(request.password))
+        .map_err(|_| AuthAPIError::InvalidCredentials)?;
 
     let user = User::new(email, password, request.requires_2fa);
     let mut user_store = state.userstore.write().await;
@@ -31,7 +33,7 @@ pub async fn signup(
     }
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Serialize)]
 pub struct SignupRequest {
     pub email: String,
     pub password: String,

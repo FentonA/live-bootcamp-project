@@ -28,6 +28,12 @@ tracing = "0.1.40"
 tracing-error = "0.2.0"
 thiserror = "1.0.58"
 color-eyre = "0.6.3"
+secrecy = { version = "0.8.0", features= ["serde"] }
 
 [dev-dependencies]
-reqwest = { version = "0.11.26", default-features = false, features = ["json", "cookies"] }
+reqwest = { version = "0.11.26", default-features = false, features = ["json", "cookies"] } 
+quickcheck = { version = "0.9.1"}
+quickcheck_macros = { version = "1.0" }
+fake = { version = "4.4.0"}
+
+

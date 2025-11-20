@@ -1,8 +1,8 @@
 use crate::domain::data_store::{UserStore, UserStoreError};
 use crate::domain::user::*;
 use crate::domain::{Email, Password};
+use secrecy::Secret;
 use std::collections::HashMap;
-
 #[derive(Debug, Default)]
 pub struct HashmapUserStore {
     users: HashMap<Email, User>,
@@ -52,8 +52,8 @@ mod tests {
     use super::*;
 
     fn create_test_user(email: &str, password: &str) -> User {
-        let email = Email::parse(email.to_string()).expect("Valid email");
-        let password = Password::parse(password.to_string()).expect("Valid password");
+        let email = Email::parse(Secret::new(email.to_owned())).expect("Valid email");
+        let password = Password::parse(Secret::new(password.to_string())).expect("Valid password");
         User::new(email, password, true)
     }
 
@@ -71,7 +71,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_user() {
-        let email = Email::parse("test@mail.com".to_string()).expect("Valid email");
+        let email = Email::parse(Secret::new("test@mail.com".to_string())).expect("Valid email");
         let test_user = create_test_user("test@mail.com", "password123");
         let test_user_two = create_test_user("test2@mail.com", "password123");
         let mut user_store = HashmapUserStore::new();
@@ -81,17 +81,19 @@ mod tests {
         let result = user_store.get_user(&email).await;
         assert_eq!(result.expect("User should exist"), test_user);
 
-        let email_two = Email::parse("test2@mail.com".to_string()).expect("Valid email");
+        let email_two =
+            Email::parse(Secret::new("test2@mail.com".to_string())).expect("Valid email");
         let result_not_found = user_store.get_user(&email_two).await;
         assert_eq!(result_not_found, Err(UserStoreError::UserNotFound));
     }
 
     #[tokio::test]
     async fn test_validate_user() {
-        let email = Email::parse("test@mail.com".to_string()).expect("Valid email");
-        let password = Password::parse("password123".to_string()).expect("Valid password");
+        let email = Email::parse(Secret::new("test@mail.com".to_string())).expect("Valid email");
+        let password =
+            Password::parse(Secret::new("password123".to_string())).expect("Valid password");
         let wrong_password =
-            Password::parse("wrongpassword123".to_string()).expect("Valid password");
+            Password::parse(Secret::new("wrongpassword123".to_owned())).expect("Valid password");
 
         let test_user = create_test_user("test@mail.com", "password123");
         let mut user_store = HashmapUserStore::new();
@@ -105,7 +107,7 @@ mod tests {
         assert_eq!(result_invalid, Err(UserStoreError::InvalidCredentials));
 
         let nonexistent_email =
-            Email::parse("nonexistent@mail.com".to_string()).expect("Valid email");
+            Email::parse("nonexistent@mail.com".to_owned().into()).expect("Valid email");
         let result_not_found = user_store
             .validate_user(&nonexistent_email, &password)
             .await;
