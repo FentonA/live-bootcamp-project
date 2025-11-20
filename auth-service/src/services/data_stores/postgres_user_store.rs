@@ -119,7 +119,7 @@ async fn verify_password_hash(
     let result = tokio::task::spawn_blocking(move || {
         current_span.in_scope(|| {
             let expected_password_hash: PasswordHash<'_> =
-                PasswordHash::new(&expected_password_hash.expose_secret())?;
+                PasswordHash::new(expected_password_hash.expose_secret())?;
 
             Argon2::default()
                 .verify_password(

@@ -1,21 +1,17 @@
 use auth_service::data_stores::postgres_user_store::PostgresUserStore;
 use auth_service::data_stores::redis_two_fa_code_store::RedisTwoFACodeStore;
 use auth_service::get_postgres_pool;
-use auth_service::utils::constants::{DATABASE_URL, DEFAULT_REDIS_HOSTNAME};
+use auth_service::utils::constants::{
+    prod, DATABASE_URL, DEFAULT_REDIS_HOSTNAME, POSTMARK_AUTH_TOKEN,
+};
 use auth_service::utils::tracing::init_tracing;
 use auth_service::{
-    app_state::app_state::AppState,
-    domain::{email_client, EmailClient},
-    get_redis_client,
-    hashmap_two_fa_code_store::HashMapTwoFACodeStore,
-    hashmap_user_store::HashmapUserStore,
+    app_state::app_state::AppState, domain::Email, get_redis_client,
     hashset_banned_token_store::HashsetBannedTokenStore,
-    mock_email_client::MockEmailClient,
-    utils::constants::prod,
-    Application,
+    services::postmark_email_client::PostmarkEmailClient, Application,
 };
+use reqwest::Client;
 use secrecy::Secret;
-use sqlx::sqlx_macros;
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -29,7 +25,7 @@ async fn main() {
     let userstore = PostgresUserStore::new(pg_pool);
     let tokenstore = HashsetBannedTokenStore::new();
     let two_fa_code_store = RedisTwoFACodeStore::new(redis_conn);
-    let email_client = Arc::new(MockEmailClient);
+    let email_client = Arc::new(configure_postmark_email_client());
     let app_state = AppState::new(
         Arc::new(RwLock::new(userstore)),
         Arc::new(RwLock::new(tokenstore)),
@@ -63,4 +59,18 @@ fn configure_redis() -> Arc<RwLock<redis::Connection>> {
         .expect("Failed to get Redis connection");
 
     Arc::new(RwLock::new(conn))
+}
+
+fn configure_postmark_email_client() -> PostmarkEmailClient {
+    let http_client = Client::builder()
+        .timeout(prod::email_client::TIMEOUT)
+        .build()
+        .expect("Failed to build HTTP client");
+
+    PostmarkEmailClient::new(
+        prod::email_client::BASE_URL.to_owned(),
+        Email::parse(Secret::new(prod::email_client::SENDER.to_owned())).unwrap(),
+        POSTMARK_AUTH_TOKEN.to_owned(),
+        http_client,
+    )
 }
