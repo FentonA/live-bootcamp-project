@@ -1,7 +1,7 @@
 version: "3.9"
 services:
   app-service:
-    image: letsgetrusty/app-service
+    image: fen7/app-service
     restart: "always"
     environment:
       AUTH_SERVICE_IP: ${AUTH_SERVICE_IP}
@@ -11,6 +11,7 @@ services:
       auth-service:
         condition: service_started
   auth-service:
+    image: fen7/auth-service 
     build: .  
     restart: "always"
     environment:
