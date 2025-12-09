@@ -32,17 +32,9 @@ async fn should_return_401_if_incorrect_credentials() {
         "password": "correct_password",
         "requires2FA": true
     });
-
     let response = app.post_signup(&login).await;
-
     assert_eq!(response.status().as_u16(), 201);
 
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .expect(1)
-        .mount(&app.email_server)
-        .await;
     let user = serde_json::json!({
         "email": "existing_user@mail.com",
         "password": "dfjas:dlfkjasd:fljkad",
@@ -50,6 +42,7 @@ async fn should_return_401_if_incorrect_credentials() {
     });
     let response = app.post_login(&user).await;
     assert_eq!(response.status().as_u16(), 401);
+
     app.clean_up().await
 }
 

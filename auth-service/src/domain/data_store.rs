@@ -153,12 +153,11 @@ impl TwoFACode {
         }
     }
 }
+
 impl Default for TwoFACode {
     fn default() -> Self {
         let mut rng = rand::rng();
-        let code: String = (0..6)
-            .map(|_| rng.random_range(b'A'..=b'Z') as char)
-            .collect();
-        Self(Secret::new(code))
+        let code = rng.random_range(100_000..=999_999); // Generate 6-digit number
+        Self(Secret::new(code.to_string()))
     }
 }

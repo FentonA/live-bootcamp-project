@@ -66,10 +66,22 @@ async fn handle_2fa(
 
     let mut code_store = state.two_fa_code_store.write().await;
     if let Err(e) = code_store
-        .add_code(email, login_attempt_id.clone(), two_fa_code)
+        .add_code(email, login_attempt_id.clone(), two_fa_code.clone()) // Add .clone()
         .await
     {
         return (jar, Err(AuthAPIError::UnexpectedError((e.into()))));
+    }
+
+    if let Err(e) = state
+        .email_client
+        .send_email(
+            email,
+            "Your 2FA Code",
+            &format!("Your 2FA code is: {}", two_fa_code.as_ref().expose_secret()),
+        )
+        .await
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError(e.into())));
     }
 
     (jar, Ok((StatusCode::OK, Json(response)).into_response()))
@@ -94,7 +106,7 @@ pub struct LoginRequest {
     pub requires_2fa: bool,
 }
 
-#[derive(Deserialize, Default, Serialize)]
+#[derive(Deserialize, Default, Serialize, Debug)]
 pub struct RegularAuth {
     pub message: String,
 }
@@ -109,6 +121,6 @@ pub struct TwoFactorAuthResponse {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
-    RegularAuth,
+    RegularAuth(RegularAuth),
     TwoFactorAuth(TwoFactorAuthResponse),
 }

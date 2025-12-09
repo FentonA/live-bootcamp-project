@@ -11,16 +11,18 @@ services:
       auth-service:
         condition: service_started
   auth-service:
-    image: letsgetrusty/auth-service
+    build: .  
     restart: "always"
     environment:
       JWT_SECRET: ${JWT_SECRET}
       DATABASE_URL: "postgres://postgres:${POSTGRES_PASSWORD}@db:5432"
       POSTMARK_AUTH_TOKEN: ${POSTMARK_AUTH_TOKEN}
+      REDIS_HOST_NAME: redis
     ports:
       - "3000:3000"
     depends_on:
       - db
+      - redis
   db:
     image: postgres:15.2-alpine
     restart: always
@@ -30,13 +32,11 @@ services:
       - "5432:5432"
     volumes:
       - db:/var/lib/postgresql/data
-  # New!
   redis:
     image: redis:7.0-alpine
     restart: always
     ports:
       - "6379:6379"
-
 volumes:
   db:
     driver: local

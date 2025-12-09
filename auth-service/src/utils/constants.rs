@@ -46,7 +46,7 @@ pub mod env {
 }
 
 pub const JWT_COOKIE_NAME: &str = "jwt";
-pub const DEFAULT_REDIS_HOSTNAME: &str = "127.0.0.1";
+pub const DEFAULT_REDIS_HOSTNAME: &str = "redis://127.0.0.1";
 
 pub mod prod {
     pub const APP_ADDRESS: &str = "0.0.0.0:3000";

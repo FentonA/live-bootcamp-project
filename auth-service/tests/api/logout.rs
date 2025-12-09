@@ -54,6 +54,7 @@ async fn should_return_200_if_valid_jwt_cookie() {
     let login_body = serde_json::json!({
         "email": random_email,
         "password": "password123",
+        "requires2FA": false,
     });
     let login_response = app.post_login(&login_body).await;
     assert_eq!(

@@ -1,6 +1,7 @@
 use crate::domain::data_store::{LoginAttemptId, TwoFACode, TwoFaCodeStore};
 use crate::domain::Email;
 use crate::routes::login::LoginResponse;
+use crate::routes::login::RegularAuth;
 use crate::utils::auth::generate_auth_cookie;
 use crate::{AppState, AuthAPIError};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
@@ -39,7 +40,7 @@ pub async fn verify_2fa(
         return (jar, Err(AuthAPIError::InvalidCredentials));
     }
 
-    two_fa_code_store.remove_code(&email);
+    let _ = two_fa_code_store.remove_code(&email).await;
 
     let cookie = match generate_auth_cookie(&email) {
         Ok(cookie) => cookie,
@@ -49,7 +50,13 @@ pub async fn verify_2fa(
 
     (
         updated_jar,
-        Ok((StatusCode::OK, Json(LoginResponse::RegularAuth)).into_response()),
+        Ok((
+            StatusCode::OK,
+            Json(LoginResponse::RegularAuth(RegularAuth {
+                message: "You have successfully logged in!".to_string(),
+            })),
+        )
+            .into_response()),
     )
 }
 

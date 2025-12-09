@@ -7,7 +7,7 @@ use auth_service::{
     get_postgres_pool, get_redis_client,
     hashset_banned_token_store::HashsetBannedTokenStore,
     postmark_email_client::PostmarkEmailClient,
-    utils::constants::{test, DATABASE_URL, DEFAULT_REDIS_HOSTNAME},
+    utils::constants::{test, DATABASE_URL, REDIS_HOST_NAME},
     Application,
 };
 use reqwest::{cookie::Jar, Client};
@@ -221,7 +221,7 @@ async fn configure_database(db_conn_string: &str, db_name: &str) {
 }
 
 fn configure_redis() -> Arc<RwLock<redis::Connection>> {
-    let conn = get_redis_client(DEFAULT_REDIS_HOSTNAME.to_owned())
+    let conn = get_redis_client(REDIS_HOST_NAME.to_owned())
         .expect("Failed to get Redis client")
         .get_connection()
         .expect("Failed to get Redis connection");

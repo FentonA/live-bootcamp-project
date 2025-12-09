@@ -1,9 +1,7 @@
 use auth_service::data_stores::postgres_user_store::PostgresUserStore;
 use auth_service::data_stores::redis_two_fa_code_store::RedisTwoFACodeStore;
 use auth_service::get_postgres_pool;
-use auth_service::utils::constants::{
-    prod, DATABASE_URL, DEFAULT_REDIS_HOSTNAME, POSTMARK_AUTH_TOKEN,
-};
+use auth_service::utils::constants::{prod, DATABASE_URL, POSTMARK_AUTH_TOKEN, REDIS_HOST_NAME};
 use auth_service::utils::tracing::init_tracing;
 use auth_service::{
     app_state::app_state::AppState, domain::Email, get_redis_client,
@@ -53,7 +51,7 @@ async fn configure_postgresql() -> PgPool {
 }
 
 fn configure_redis() -> Arc<RwLock<redis::Connection>> {
-    let conn = get_redis_client(DEFAULT_REDIS_HOSTNAME.to_owned())
+    let conn = get_redis_client(REDIS_HOST_NAME.to_owned())
         .expect("Failed to get Redis client")
         .get_connection()
         .expect("Failed to get Redis connection");

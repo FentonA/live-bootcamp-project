@@ -37,7 +37,7 @@ async fn should_return_400_if_invalid_input() {
         }),
         serde_json::json!({
             "email": "testmail@mail.com",
-            "password": "not-pass",
+            "password": "notpass",
             "requires2FA": false
         }),
     ];

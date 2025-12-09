@@ -112,7 +112,7 @@ pub async fn get_postgres_pool(url: &Secret<String>) -> Result<PgPool, sqlx::Err
 }
 
 pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
-    let redis_url = format!("redis://{}/", redis_hostname);
+    let redis_url = format!("redis://{}", redis_hostname);
     redis::Client::open(redis_url)
 }
 
